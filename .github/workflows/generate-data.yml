@@ -1,42 +1,59 @@
-// generate-data.js
-// Запуск: node generate-data.js
-// Сканирует папку skins/images и создаёт data.json автоматически.
+name: Generate data.json
 
-const fs = require("fs");
-const path = require("path");
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "skins/images/**"
+  workflow_dispatch: {}
 
-const IMAGES_DIR = path.join(__dirname, "skins", "images");
-const OUTPUT_FILE = path.join(__dirname, "data.json");
+permissions:
+  contents: write
 
-function walk(dir, baseDir) {
-  const results = [];
-  const entries = fs.readdirSync(dir, { withFileTypes: true });
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-  for (const entry of entries) {
-    const fullPath = path.join(dir, entry.name);
+      - name: Generate data.json from skins/images
+        run: |
+          python3 - <<'EOF'
+          import json
+          import os
 
-    if (entry.isDirectory()) {
-      results.push(...walk(fullPath, baseDir));
-    } else if (entry.isFile() && /\.png$/i.test(entry.name)) {
-      const relative = path.relative(baseDir, fullPath).split(path.sep).join("/");
-      results.push({ file: relative });
-    }
-  }
+          IMAGES_DIR = "skins/images"
+          OUTPUT_FILE = "data.json"
 
-  return results;
-}
+          data = []
 
-function main() {
-  if (!fs.existsSync(IMAGES_DIR)) {
-    console.error("Папка не найдена:", IMAGES_DIR);
-    process.exit(1);
-  }
+          if os.path.isdir(IMAGES_DIR):
+              for root, dirs, files in os.walk(IMAGES_DIR):
+                  for filename in sorted(files):
+                      if filename.lower().endswith(".png"):
+                          rel_dir = os.path.relpath(root, IMAGES_DIR)
+                          if rel_dir == ".":
+                              rel_path = filename
+                          else:
+                              rel_path = f"{rel_dir}/{filename}".replace(os.sep, "/")
+                          data.append({"file": rel_path})
 
-  const data = walk(IMAGES_DIR, IMAGES_DIR);
-  fs.writeFileSync(OUTPUT_FILE, JSON.stringify(data, null, 2), "utf-8");
+          with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+              json.dump(data, f, ensure_ascii=False, indent=2)
 
-  console.log(`Готово! Найдено файлов: ${data.length}`);
-  console.log(`data.json создан по пути: ${OUTPUT_FILE}`);
-}
+          print(f"Найдено файлов: {len(data)}")
+          EOF
 
-main();
+      - name: Commit and push data.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data.json
+          if git diff --staged --quiet; then
+            echo "Нет изменений в data.json"
+          else
+            git commit -m "Auto-update data.json"
+            git push
+          fi
