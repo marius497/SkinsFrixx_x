@@ -1,0 +1,59 @@
+name: Generate data.json
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "skins/images/**"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Generate data.json from skins/images
+        run: |
+          python3 - <<'EOF'
+          import json
+          import os
+
+          IMAGES_DIR = "skins/images"
+          OUTPUT_FILE = "data.json"
+
+          data = []
+
+          if os.path.isdir(IMAGES_DIR):
+              for root, dirs, files in os.walk(IMAGES_DIR):
+                  for filename in sorted(files):
+                      if filename.lower().endswith(".png"):
+                          rel_dir = os.path.relpath(root, IMAGES_DIR)
+                          if rel_dir == ".":
+                              rel_path = filename
+                          else:
+                              rel_path = f"{rel_dir}/{filename}".replace(os.sep, "/")
+                          data.append({"file": rel_path})
+
+          with open(OUTPUT_FILE, "w", encoding="utf-8") as f:
+              json.dump(data, f, ensure_ascii=False, indent=2)
+
+          print(f"Найдено файлов: {len(data)}")
+          EOF
+
+      - name: Commit and push data.json
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add data.json
+          if git diff --staged --quiet; then
+            echo "Нет изменений в data.json"
+          else
+            git commit -m "Auto-update data.json"
+            git push
+          fi
