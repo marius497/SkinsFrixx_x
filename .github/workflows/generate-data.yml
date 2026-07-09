@@ -5,7 +5,7 @@ on:
     branches:
       - main
     paths:
-      - "skins/images/**"
+      - "images/**"
   workflow_dispatch: {}
 
 permissions:
@@ -24,7 +24,7 @@ jobs:
           import json
           import os
 
-          IMAGES_DIR = "skins/images"
+          IMAGES_DIR = "images"
           OUTPUT_FILE = "data.json"
 
           data = []
